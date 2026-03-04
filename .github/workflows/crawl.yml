@@ -1,0 +1,27 @@
+name: Daily Crawl Admissions
+on:
+  schedule:
+    - cron: '0 8 * * *'  # 每日 UTC 8am
+  workflow_dispatch:     # 手動觸發
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - run: pip install scrapy pandas
+    - run: scrapy crawl jbcrc -o admissions.json
+    - run: |
+        # SQLite 操作範例
+        sqlite3 univ_admission.db "CREATE TABLE IF NOT EXISTS notices (title TEXT);"
+        sqlite3 univ_admission.db ".import admissions.csv notices"
+    - name: Commit DB changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add univ_admission.db admissions.json
+        git commit -m "Update admissions DB" || exit 0
+        git push
