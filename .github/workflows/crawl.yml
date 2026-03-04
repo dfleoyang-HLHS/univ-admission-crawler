@@ -1,27 +1,49 @@
-name: Daily Crawl Admissions
+name: Daily Admissions Crawl
 on:
   schedule:
-    - cron: '0 8 * * *'  # 每日 UTC 8am
-  workflow_dispatch:     # 手動觸發
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    - run: pip install scrapy pandas
-    - run: scrapy crawl jbcrc -o admissions.json
-    - run: |
-        # SQLite 操作範例
-        sqlite3 univ_admission.db "CREATE TABLE IF NOT EXISTS notices (title TEXT);"
-        sqlite3 univ_admission.db ".import admissions.csv notices"
-    - name: Commit DB changes
+    
+    # 🔧 新增：系統依賴（lxml 需要）
+    - name: Install system dependencies
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add univ_admission.db admissions.json
-        git commit -m "Update admissions DB" || exit 0
-        git push
+        sudo apt-get update
+        sudo apt-get install -y python3-dev build-essential libxml2-dev libxslt1-dev zlib1g-dev
+    
+    # 🔧 改進：分步安裝 + 除錯
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    # 🔧 驗證 Scrapy
+    - name: Verify Scrapy installation
+      run: scrapy version
+    
+    # 🔧 執行爬蟲 + 詳細日誌
+    - name: Run Scrapy crawler
+      run: |
+        scrapy crawl jbcrc -o admissions.json -L INFO
+    
+    # 🔧 驗證輸出
+    - name: Check outputs
+      run: |
+        ls -la admissions.*
+        head -5 admissions.json
+    
+    - uses: actions/upload-artifact@v4
+      with:
+        name: admissions-data
+        path: |
+          admissions.*
